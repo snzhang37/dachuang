@@ -266,14 +266,14 @@ class Gabriel_Generator():
 
 
 if __name__ == '__main__':
-    num_of_nodes = [200, 400, 600, 800, 1000]
-    for i in range(5):
+    num_of_nodes = [20]
+    for i in range(len(num_of_nodes)):
         num_nodes = num_of_nodes[i]
         seed = 0 # 随机种子，保证可复现
         c_max = 968
         band = 8
         target_occupacy = 0.2 # 初始网络占用率
-        num_service = 2500 # 要产生的业务数量
+        num_service = 20 # 要产生的业务数量
         relay_ratio = 0.3 # 中继器的比例，一般在0.1~0.3之间，越高，服务成功率也会相应高一些
         file_name = "example_" + str(num_nodes)
 

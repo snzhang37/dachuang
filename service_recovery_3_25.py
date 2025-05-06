@@ -84,52 +84,69 @@ class ServiceRecovery(Cluster):
         for i in range(len(path) - 1):
             self.G[path[i]][path[i + 1]]['f_slot'].add(l)
 
-
     def sorted_services(self, services):
         length_list = []
         for service in services:
-
             try:
-                path = nx.shortest_path(self.G, service['src'], service['snk'])
-            except NetworkXNoPath:
-                path = []
+                path_length = nx.shortest_path_length(self.G, service['src'], service['snk'])
+            except nx.NetworkXNoPath:
+                path_length = float('inf')
+            length_list.append(path_length)
 
-            length_list.append(len(path))
+        combined_list = list(zip(length_list, services))
+        sorted_combined_list = sorted(combined_list, key=lambda x: x[0])
+        result = [service for _, service in sorted_combined_list]
+        return result
 
-        sorted_list = sorted(enumerate(length_list), key=lambda x: x[1], reverse=True)
-        # 分组相等的元素
-        sorted_list.sort(key=lambda x: x[1])
-        # 根据第二项分组，结果只保留第一项
-        grouped = {key: [item[0] for item in group] for key, group in groupby(sorted_list, key=lambda x: x[1])}
-        group_keys = sorted(list(grouped.keys()), reverse=True)
+    def sorted_services_2(self, services):
+        num_of_relay = []
+        for service in services:
+            s = service['src']
+            t = service['snk']
+            if s in self.nodes_reachable[t]:
+                num_of_relay.append(0)
+                continue
 
-        sorted_indices = []
-        for group in group_keys:
-            service_same_dis = grouped[group] # 距离相等的业务集合
-            length_list = []
-            for service in service_same_dis:
+            s_domains = self.nodes_relay_reachable[s]
+            t_domains = self.nodes_relay_reachable[t]
+            all_pairs = list(itertools.product(s_domains, t_domains))
+            if len(all_pairs) == 0:
+                num_of_relay.append(float('inf'))
+            else:
+                num_of_relay.append(min(map(lambda x : self.subgraph_pairs_length[x[0]][x[1]], all_pairs)))
 
-                try:
-                    path = nx.shortest_path(self.G, services[service]['src'], services[service]['snk'])
-                    neighbor_along_path = min(len(list(self.G.neighbors(node))) for node in path)
-                except NetworkXNoPath:
-                    path = []
-                    neighbor_along_path = 100
+        combined_list = list(zip(num_of_relay, services))
+        sorted_combined_list = sorted(combined_list, key=lambda x: x[0])
+        result = [service for _, service in sorted_combined_list]
+        return result
 
-                # neighbor_along_path = 0
-                # for node in path:
-                #     neighbor_along_path += len(list(self.G.neighbors(node)))
-                # length_list.append(neighbor_along_path/len(path)) # 一路上邻居节点平均值
+    def sorted_services_3(self, services):
+        num_of_relay = []
+        length_list = []
+        for service in services:
+            s = service['src']
+            t = service['snk']
+            if s in self.nodes_reachable[t]:
+                num_of_relay.append(0)
+            else:
 
+                s_domains = self.nodes_relay_reachable[s]
+                t_domains = self.nodes_relay_reachable[t]
+                all_pairs = list(itertools.product(s_domains, t_domains))
+                if len(all_pairs) == 0:
+                    num_of_relay.append(float('inf'))
+                else:
+                    num_of_relay.append(min(map(lambda x : self.subgraph_pairs_length[x[0]][x[1]], all_pairs)))
+            try:
+                path_length = nx.shortest_path_length(self.G, s, t)
+            except nx.NetworkXNoPath:
+                path_length = float('inf')
+            length_list.append(path_length)
 
-                length_list.append(neighbor_along_path) # 一路上邻居节点最小值最小值（效果更好）
-
-            sorted_indices1 = [service_same_dis[index] for index, value in sorted(enumerate(length_list), key=lambda x: x[1], reverse=False)]
-            sorted_indices += sorted_indices1
-
-        # 根据索引重新排序
-        services = [services[i] for i in sorted_indices] # 按照阻塞概率排列的，越容易阻塞的越靠前
-        return services
+        combined_list = list(zip(length_list, num_of_relay, services))
+        sorted_combined_list = sorted(combined_list, key=lambda x: (x[1],x[0]))
+        result = [service for _, _, service in sorted_combined_list]
+        return result
 
     # 检查业务路由的正确性，从路径有效/中继器有效/频谱有效/光参有效四个方面来判断
     def get_resource_occupation(self):
@@ -253,16 +270,20 @@ class ServiceRecovery(Cluster):
 
         return route
 
-    def run(self):
+    def run(self, method=1):
 
         num_succeed = 0
         # print(self.get_resource_occupation())
 
         START = time.time()
-
-        self.services = self.sorted_services(self.services) # 处理服务顺序，距离远的放前面
-        self.services.reverse()
-        # random.shuffle(self.services)
+        if method == 1:
+            self.services = self.sorted_services(self.services)
+        elif method == 2:
+            self.services = self.sorted_services_2(self.services)
+        elif method == 3:
+            self.services = self.sorted_services_3(self.services)
+        else:
+            random.shuffle(self.services)
         for index, service in enumerate(self.services):
 
             #if num_succeed % 100 == 0:
